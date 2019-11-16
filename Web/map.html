@@ -1,0 +1,144 @@
+<!DOCTYPE HTML5>
+<html>
+<head>
+    <title>Locations</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.4.0/dist/leaflet.css" integrity="sha512-puBpdR0798OZvTTbP4A8Ix/l+A4dHDD0DGqYW6RQ+9jxkRFclaxxQb/SJAWZfWAkuyeQUytO7+7N4QKrDh+drA==" crossorigin="">
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js" integrity="sha512-QVftwZFqvtRNi0ZyCtsznlKSWOStnDORoefr1enyq5mVL4tmKB3S/EnC3rRJcxCPavG10IcrVGSmPh6Qw5lwrg==" crossorigin=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
+</head>
+<body>
+    <div id='map' style='width: 100%; height: 100vh;'></div>
+    <div class="container">
+        <br>
+        <h3>Schedule journey</h3>
+        <form id="scheduleTrip">
+            <label>From</label>
+            <select name="from" class="form-control location-select">
+                <option selected disabled>Select location...</option>
+            </select>
+            <label>To</label>
+            <select name="to" class="form-control location-select">
+                <option selected disabled>Select location...</option>
+            </select>
+            <label>Preferred departure time</label>
+            <input name="time" type="time" class="form-control">
+            <br>
+            <a href="#" class="btn btn-primary" onclick="submitScheduleTripForm()">Schedule trip</a>
+        </form>
+    </div>
+    <script
+        src="https://code.jquery.com/jquery-3.4.1.min.js"
+        integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script>
+        var layer1 = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>'
+        });
+        var map = L.map('map', {
+            center: [53.4155801, -2.3278358],
+        zoom: 11,
+            layers: [layer1]
+        });
+        var baseMaps = {
+            "Standard": layer1
+        };
+        var layerControl = L.control.layers().addTo(map);
+        var landingIcon = L.icon({
+            iconUrl: 'assets/landing.png',
+            iconSize: [20, 35],
+        });
+        var vehicleIcon = L.icon({
+            iconUrl: 'assets/vehicle.png',
+            iconSize: [20, 35],
+        });
+        var vehicleLayers = {};
+        $.ajax({
+            url: 'locations.php',
+            method: 'GET'
+        }).done(function(res) {
+            $.each(res, function(i, location) {
+                L.marker([location.latitude, location.longitude], {icon: landingIcon}).addTo(map).bindPopup(location.name);
+                $('.location-select').append('<option val="' + location.id + '">' + location.name + '</option>');
+            });
+        });
+        $.ajax({
+            url: 'vehicles.php',
+            method: 'GET'
+        }).done(function(res) {
+            $.each(res, function(i, vehicle) {
+                vehicleLayers[vehicle.id] = L.layerGroup();
+                layerControl.addOverlay(vehicleLayers[vehicle.id], 'Vehicle ' + vehicle.id);
+            });
+        });
+        setInterval(function() {
+            updateMapData();
+        }, 3000);
+        function updateMapData() {
+            $.ajax({
+                url: 'trips.php',
+                method: 'GET'
+            }).done(function(res) {
+                $.each(vehicleLayers, function(i, data) {
+                    layerControl.removeLayer(vehicleLayers[i]);
+                    vehicleLayers[i].removeFrom(map);
+                    delete vehicleLayers[i];
+                });
+                $.each(res, function(i, trip) {
+                    vehicleLayers[trip.vehicle_id] = L.layerGroup();
+                    var progress = (moment().unix() - trip.start_time) / (trip.end_time - trip.start_time);
+                    L.marker(pointAtPercent(
+                        {x: trip.start_location.latitude, y: trip.start_location.longitude},
+                        {x: trip.end_location.latitude, y: trip.end_location.longitude},
+                        progress), {icon: vehicleIcon}).addTo(vehicleLayers[trip.vehicle_id]);
+                    L.polyline(
+                        [
+                            [trip.start_location.latitude, trip.start_location.longitude],
+                            [trip.end_location.latitude, trip.end_location.longitude]
+                        ]
+                        , {color: '#333333'}
+                    ).addTo(vehicleLayers[trip.vehicle_id]);
+                    vehicleLayers[trip.vehicle_id].addTo(map);
+                    layerControl.addOverlay(vehicleLayers[trip.vehicle_id], 'Vehicle ' + trip.vehicle_id);
+                });
+            });
+        }
+        function pointAtPercent(p0, p1, percent) {
+            var x;
+            if (p0.x !== p1.x)
+                x = p0.x + percent * (p1.x - p0.x);
+            else
+                x = p0.x;
+
+            var y;
+            if (p0.y !== p1.y)
+                y = p0.y + percent * (p1.y - p0.y);
+            else
+                y = p0.y;
+            return [x,y];
+        }
+        function submitScheduleTripForm() {
+            const from = $('#scheduleTrip select[name=from]').val();
+            const to = $('#scheduleTrip select[name=to]').val();
+            const time = $('#scheduleTrip input[name=time]').val();
+            $.ajax({
+                url: 'schedule_trip.php',
+                method: 'POST',
+                data: {
+                    'from_location_id': from,
+                    'to_location_id': to
+                }
+            }).done(function(res) {
+                toastr.success('Trip scheduled successfully');
+            }).fail(function() {
+                toastr.error('Failed to schedule trip');
+            });
+            console.log(from, to, time);
+        }
+    </script>
+</body>
+</html>

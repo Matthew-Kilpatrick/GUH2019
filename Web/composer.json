@@ -1,0 +1,7 @@
+{
+  "name": "guh2019/city_airbus",
+  "minimum-stability": "stable",
+  "require": {
+    "thingengineer/mysqli-database-class": "v2.9.3"
+  }
+}
