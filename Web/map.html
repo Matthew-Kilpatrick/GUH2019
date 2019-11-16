@@ -22,10 +22,8 @@
             <select name="to" class="form-control location-select">
                 <option selected disabled>Select location...</option>
             </select>
-            <label>Preferred departure time</label>
-            <input name="time" type="time" class="form-control">
             <br>
-            <a href="#" class="btn btn-primary" onclick="submitScheduleTripForm()">Schedule trip</a>
+            <a href="javascript:void(0)" class="btn btn-primary" onclick="submitScheduleTripForm()">Schedule trip</a>
         </form>
     </div>
     <script
@@ -63,7 +61,7 @@
         }).done(function(res) {
             $.each(res, function(i, location) {
                 L.marker([location.latitude, location.longitude], {icon: landingIcon}).addTo(map).bindPopup(location.name);
-                $('.location-select').append('<option val="' + location.id + '">' + location.name + '</option>');
+                $('.location-select').append('<option value="' + location.id + '">' + location.name + '</option>');
             });
         });
         $.ajax({
@@ -124,7 +122,6 @@
         function submitScheduleTripForm() {
             const from = $('#scheduleTrip select[name=from]').val();
             const to = $('#scheduleTrip select[name=to]').val();
-            const time = $('#scheduleTrip input[name=time]').val();
             $.ajax({
                 url: 'schedule_trip.php',
                 method: 'POST',
@@ -137,7 +134,6 @@
             }).fail(function() {
                 toastr.error('Failed to schedule trip');
             });
-            console.log(from, to, time);
         }
     </script>
 </body>
