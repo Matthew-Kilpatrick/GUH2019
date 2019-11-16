@@ -19,12 +19,22 @@
         }
     }
 
+    function getVehicle($id) {
+        global $vehicles;
+        foreach ($vehicles as $vehicle) {
+            if ($vehicle['id'] == $id) {
+                return $vehicle;
+            }
+        }
+    }
+
     $startLocation = $_POST['from_location_id'];
     $endLocation = $_POST['to_location_id'];
 
     $locations = $_DB->get('locations');
     $vehicles = $_DB->get('vehicles');
     $vehicleTrips = array();
+    $vehicleTimes = array();
     $vehiclesAtLocation = array();
     $vehicleAvailabilityTimes = array();
     // Get current active trips
@@ -38,11 +48,17 @@
                 $timeToAvailable = $trips[0]['end_time'] - time();
                 // and needs charging...
                 $timeToAvailable += $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100);
+                // Set times in time array
+                $vehicleTimes[$vehicle['id']] = [
+                    'time_to_trip_end' => 0,
+                    'time_to_charge_1' => 0,
+                    'time_to_customer' => $trips[0]['end_time'] - time(),
+                    'time_to_charge_2' => $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100)
+                ];
             } else {
                 // vehicle ends elsewhere
                 // Time to end current trip
                 $timeToAvailable = $trips[0]['end_time'] - time();
-                $timeToAvailable = time() - $trips[0]['end_time'];
                 // Time to charge
                 $timeToAvailable += $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100);
                 // Time to travel to customer
@@ -57,6 +73,13 @@
                 // Time to charge at customer
                 $chargeLostOnJourney = $timeOnJourney / $vehicle['charge_fly_time'];
                 $timeToAvailable += $vehicle['charge_time'] * $chargeLostOnJourney;
+                // Set val in times array
+                $vehicleTimes[$vehicle['id']] = [
+                    'time_to_trip_end' => $trips[0]['end_time'] - time(),
+                    'time_to_charge_1' => $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100),
+                    'time_to_customer' => $timeOnJourney,
+                    'time_to_charge_2' => $vehicle['charge_time'] * $chargeLostOnJourney
+                ];
             }
         } else if ($vehicle['next_location_id'] == $startLocation) {
             // Vehicle at current location
@@ -64,8 +87,20 @@
             $timeToAvailable = 0;
             if ($vehicle['charge'] != 100) {
                 $timeToAvailable = $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100);
+                $vehicleTimes[$vehicle['id']] = [
+                    'time_to_trip_end' => 0,
+                    'time_to_charge_1' => 0,
+                    'time_to_customer' => 0,
+                    'time_to_charge_2' => $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100)
+                ];
             } else {
                 $timeToAvailable = 0;
+                $vehicleTimes[$vehicle['id']] = [
+                    'time_to_trip_end' => 0,
+                    'time_to_charge_1' => 0,
+                    'time_to_customer' => 0,
+                    'time_to_charge_2' => 0
+                ];
             }
         } else {
             // Vehicle is idle at another location
@@ -87,6 +122,13 @@
                 // Time to charge at customer
                 $chargeLostOnJourney = $timeOnJourney / $vehicle['charge_fly_time'];
                 $timeToAvailable += $vehicle['charge_time'] * $chargeLostOnJourney;
+                // Populate array
+                $vehicleTimes[$vehicle['id']] = [
+                    'time_to_trip_end' => 0,
+                    'time_to_charge_1' => 0,
+                    'time_to_customer' => $timeOnJourney,
+                    'time_to_charge_2' => $vehicle['charge_time'] * $chargeLostOnJourney
+                ];
             } else {
                 // Needs more charge
                 // Remaining time to charge at current location
@@ -105,14 +147,62 @@
                 // Charge at customer
                 $chargeLostOnJourney = $timeOnJourney / $vehicle['charge_fly_time'];
                 $timeToAvailable += $vehicle['charge_time'] * $chargeLostOnJourney;
+                // Populate array
+                $vehicleTimes[$vehicle['id']] = [
+                    'time_to_trip_end' => 0,
+                    'time_to_charge_1' => $timeToChargedAt,
+                    'time_to_customer' => $timeOnJourney,
+                    'time_to_charge_2' => $vehicle['charge_time'] * $chargeLostOnJourney
+                ];
             }
         }
         $vehicleAvailabilityTimes[$vehicle['id']] = $timeToAvailable;
+        $startLoc = getLocation($startLocation);
+        $endLoc = getLocation($endLocation);
+        $distToDest = getDistance($startLoc['lat'], $startLoc['lon'], $endLoc['lat'], $endLoc['lon']);
+        $vehicleTimes[$vehicle['id']]['time_to_destination'] = 60 * ($distToDest / $vehicle['speed']); // 60 * dist(km)/speed(km/h) = min
     }
-    echo json_encode($vehicleAvailabilityTimes);
     // Check if vehicle idle at location
 
     // VEHICLE SELECTED BY THIS STAGE
     // Update vehicle battery to what it will be after trip
     // Create trip(s) in database (one to get vehicle to user, one to get user to destination)
+    $minTime = -1;
+    $minVehicle = Null;
+    foreach ($vehicleAvailabilityTimes as $vID=>$vTime) {
+        if ($minTime == -1 || $vTime < $minTime) {
+            $minTime = $vTime;
+            $minVehicle = $vID;
+        }
+    }
+    echo 'The vehicle will arrive in ' . round($minTime) . ' minutes';
+    //echo json_encode($vehicleTimes[$minVehicle]);
+    $vehicleData = $vehicleTimes[$minVehicle];
+    if ($vehicleData['time_to_trip_end'] > 0) {
+        // Trip needed to reach customer
+        $data = [
+            'start_location_id' => $startLocation,
+            'end_location_id' => $endLocation,
+            'vehicle_id' => $minVehicle
+        ];
+        $data['start_time'] = time() + ($vehicleData['time_to_trip_end'] + $vehicleData['time_to_charge_1']) * 60;
+        $data['end_time'] = $data['start_time'] + ($vehicleData['time_to_customer'] * 60);
+        $_DB->insert('trips', $data);
+    }
+    // Data for trip with customer
+    $data = [
+        'start_location_id' => $startLocation,
+        'end_location_id' => $endLocation,
+        'vehicle_id' => $minVehicle
+    ];
+    $data['start_time'] = time() + ($vehicleData['time_to_trip_end'] + $vehicleData['time_to_charge_1']
+        + $vehicleData['time_to_customer'] + $vehicleData['time_to_charge_2']) * 60;
+    $data['end_time'] = $data['start_time'] + ($vehicleData['time_to_destination'] * 60);
+    $_DB->insert('trips', $data);
+    // TODO: UPDATE CHARGE & NEXT LOCATION OF VEHICLE
+    $chargeAfterJourney = round(100 * (1 - $vehicleData['time_to_destination'] / $vehicle['charge_fly_time']));
+    $_DB->where('id', $minVehicle)->update('vehicles', [
+        'next_location_id' => $endLocation,
+        'charge' => $chargeAfterJourney
+    ]);
 ?>

@@ -130,7 +130,7 @@
                     'to_location_id': to
                 }
             }).done(function(res) {
-                toastr.success('Trip scheduled successfully');
+                toastr.success(res);
             }).fail(function() {
                 toastr.error('Failed to schedule trip');
             });
