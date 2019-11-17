@@ -221,5 +221,9 @@
         'next_location_id' => $endLocation,
         'charge' => $chargeAfterJourney
     ]);
-    echo json_encode(['message'=> 'The vehicle will arrive in ' . round($minTime) . ' minutes', 'ids' => implode($tripIDs, ','), 'd' => $vehicleAvailabilityTimes]);
+    if ($minTime != 0) {
+        echo json_encode(['message' => 'The vehicle will arrive in ' . round($minTime) . ' minutes', 'ids' => implode($tripIDs, ','), 'd' => $vehicleAvailabilityTimes]);
+    } else {
+        echo json_encode(['message' => 'The vehicle is ready at the start location', 'ids' => implode($tripIDs, ','), 'd' => $vehicleAvailabilityTimes]);
+    }
 ?>
