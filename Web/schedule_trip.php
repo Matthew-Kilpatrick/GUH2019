@@ -33,6 +33,7 @@
     $endLocation = $_POST['to_location_id'];
 
     $locations = $_DB->get('locations');
+    $_DB->where('enabled', 1);
     $vehicles = $_DB->get('vehicles');
     $vehicleTrips = array();
     $vehicleTimes = array();
@@ -222,7 +223,7 @@
         'charge' => $chargeAfterJourney
     ]);
     if ($minTime != 0) {
-        echo json_encode(['message' => 'The vehicle will arrive in ' . round($minTime) . ' minutes', 'ids' => implode($tripIDs, ','), 'd' => $vehicleAvailabilityTimes]);
+        echo json_encode(['message' => 'The vehicle will be ready at location in ' . round($minTime) . ' minutes', 'ids' => implode($tripIDs, ','), 'd' => $vehicleAvailabilityTimes]);
     } else {
         echo json_encode(['message' => 'The vehicle is ready at the start location', 'ids' => implode($tripIDs, ','), 'd' => $vehicleAvailabilityTimes]);
     }

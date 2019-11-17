@@ -23,7 +23,8 @@
             'speed' => $vehicle['speed'],
             'status' => $status,
             'capacity' => $vehicle['capacity'],
-            'next_location' => $vehicle['next_location_id']
+            'next_location' => $vehicle['next_location_id'],
+            'enabled' => $vehicle['enabled']
         ];
     }
     echo json_encode($response);

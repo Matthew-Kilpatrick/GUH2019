@@ -42,9 +42,10 @@
                     <tr>
                         <th scope="col">Vehicle ID</th>
                         <th scope="col">Status</th>
-                        <th scope="col">Capacity</th>
+                        <th scope="col">Capacity</td>
                         <th scope="col">Speed</th>
                         <th scope="col">Charge time</th>
+                        <th scope="col">Enabled</th>
                     </tr>
                     </thead>
                     <tbody id="vehicleDataTableBody"></tbody>
@@ -62,9 +63,6 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <script>
-        var layer1 = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>'
-        });
         var layer1 = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token={{MAPBOX_PK_HERE}}', {
             attribution: '<a href="https://www.mapbox.com/feedback/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         });
@@ -100,8 +98,13 @@
                     '<td>' + vehicle.status + '</td>\n' +
                     '<td>' + vehicle.capacity + ' passengers</td>\n' +
                     '<td>' + vehicle.speed + ' km/h</td>\n' +
-                    '<td>' + vehicle.charge_time + ' min</td>\n' +
-                    '</tr>';
+                    '<td>' + vehicle.charge_time + ' min</td>\n';
+                    if (vehicle.enabled) {
+                        data += '<td><input onchange="toggleVehicleEnabled(' + vehicle.id + ', $(this).is(\':checked\'))" type="checkbox" checked></td>\n';
+                    } else {
+                        data += '<td><input onchange="toggleVehicleEnabled(' + vehicle.id + ', $(this).is(\':checked\'))" type="checkbox"></td>\n';
+                    }
+                    data += '</tr>';
                 });
                 $('#vehicleDataTableBody').html(data);
             })
@@ -186,6 +189,20 @@
             }).fail(function() {
                 toastr.error('Failed to schedule trip');
             });
+        }
+        function toggleVehicleEnabled(vehicle, status) {
+            $.ajax({
+                url: 'update_vehicle_enabled.php',
+                method: 'POST',
+                data: {
+                    'vehicle_id': vehicle,
+                    'enabled': (status === true) ? 'enabled' : 'disabled'
+                }
+            }).done(function() {
+                toastr.success('Vehicle status updated');
+            }).fail(function() {
+                toastr.error('Failed to update vehicle status');
+            })
         }
     </script>
 </body>
