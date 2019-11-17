@@ -9,9 +9,9 @@
             $_DB->where('start_time <= ? AND end_time >= ? AND (id=?)', [time(), time(), $ids[0]]);
         } else {
             // is 2
-            $_DB->where('start_time <= ? AND end_time >= ? AND (id=? OR id=?)', [time(), time(), $ids['ids'][0], $ids['ids'][1]]);
+            $_DB->where('start_time <= ? AND end_time >= ? AND (id=? OR id=?)', [time(), time(), $ids[0], $ids[1]]);
         }
-    }else {
+    } else {
         $_DB->where('start_time', time(), '<=')->where('end_time', time(), '>=');
     }
     foreach ($_DB->get('trips') as $trip) {

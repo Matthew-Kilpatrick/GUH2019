@@ -16,6 +16,7 @@
             <div class="nav nav-tabs" id="nav-tab" role="tablist">
                 <a class="nav-item nav-link active" data-toggle="tab" href="#tab-schedule" role="tab">Schedule</a>
                 <a class="nav-item nav-link" data-toggle="tab" href="#tab-vehicle" role="tab" onclick="loadVehicleStatus()">Vehicles</a>
+                <a class="nav-item nav-link" data-toggle="tab" href="#tab-location" role="tab" onclick="loadLocationStatus()">Locations</a>
             </div>
         </nav>
         <div class="tab-content" id="tab-pills-content">
@@ -36,7 +37,7 @@
             </div>
             <div class="tab-pane fade" id="tab-vehicle" role="tabpanel">
                 <h3>Vehicles</h3>
-                <a href="javascript:void(0)" onclick="loadVehicleStatus()">Update table</a>
+                <a href="javascript:void(0)" onclick="loadVehicleStatus()">Update table</a>  |  <a href="javascript:void(0)" data-toggle="modal" data-target="#newVehicleModal">New vehicle</a>
                 <table class="table">
                     <thead class="thead-dark">
                     <tr>
@@ -52,8 +53,59 @@
                 </table>
 
             </div>
+
+            <div class="tab-pane fade" id="tab-location" role="tabpanel">
+                <h3>Locations</h3>
+                <a href="javascript:void(0)" onclick="loadLocationStatus()">Update table</a>
+                <table class="table">
+                    <thead class="thead-dark">
+                    <tr>
+                        <th scope="col">Location ID</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Lat</td>
+                        <th scope="col">Lon</th>
+                        <th scope="col">Enabled</th>
+                    </tr>
+                    </thead>
+                    <tbody id="locationDataTableBody"></tbody>
+                </table>
+
+            </div>
+
         </div>
         <br>
+    </div>
+    <div class="modal fade" tabindex="-1" role="dialog" id="newVehicleModal">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Vehicle</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="addVehicle">
+                        <label>Start location</label>
+                        <select name="start" class="form-control location-select">
+                            <option selected disabled>Select start location...</option>
+                        </select>
+                        <label>Capacity</label>
+                        <input type="number" name="capacity" class="form-control">
+                        <label>Charge Time (min)</label>
+                        <input type="number" name="charge_time" class="form-control">
+                        <label>Speed (km/h)</label>
+                        <input type="number" name="speed" class="form-control">
+                        <label>Single charge fly time (min)</label>
+                        <input type="number" name="charge_fly_time" class="form-control">
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button onclick="submitCreateVehicleForm()" href="javascript:void(0)" type="button" class="btn btn-primary">Create</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
     </div>
     <script
         src="https://code.jquery.com/jquery-3.4.1.min.js"
@@ -109,6 +161,29 @@
                 $('#vehicleDataTableBody').html(data);
             })
         }
+        function loadLocationStatus() {
+            $.ajax({
+                url: 'locations.php?include_disabled=true',
+                method: 'GET'
+            }).done(function(res) {
+                var data = '';
+                $.each(res, function(i, location) {
+                    data += '<tr>\n' +
+                        '<th scope="row">' + location.id + '</th>\n' +
+                        '<td>' + location.name + '</td>\n' +
+                        '<td>' + location.latitude + '</td>\n' +
+                        '<td>' + location.longitude + '</td>\n';
+                    if (location.enabled) {
+                        data += '<td><input onchange="toggleLocationEnabled(' + location.id + ', $(this).is(\':checked\'))" type="checkbox" checked></td>\n';
+                    } else {
+                        data += '<td><input onchange="toggleLocationEnabled(' + location.id + ', $(this).is(\':checked\'))" type="checkbox"></td>\n';
+                    }
+                    data += '</tr>';
+                });
+                $('#locationDataTableBody').html(data);
+            })
+        }
+
         $.ajax({
             url: 'locations.php',
             method: 'GET'
@@ -202,7 +277,39 @@
                 toastr.success('Vehicle status updated');
             }).fail(function() {
                 toastr.error('Failed to update vehicle status');
-            })
+            });
+        }
+        function toggleLocationEnabled(location, status) {
+            $.ajax({
+                url: 'update_location_enabled.php',
+                method: 'POST',
+                data: {
+                    'location_id': location,
+                    'enabled': (status === true) ? 'enabled' : 'disabled'
+                }
+            }).done(function() {
+                toastr.success('Location status updated');
+            }).fail(function() {
+                toastr.error('Failed to update location status');
+            });
+        }
+        function submitCreateVehicleForm() {
+            $.ajax({
+                url: 'create_vehicle.php',
+                method: 'POST',
+                data: {
+                    'next_location_id': $('#addVehicle select[name=start]').val(),
+                    'capacity': $('#addVehicle input[name=capacity]').val(),
+                    'charge_time': $('#addVehicle input[name=charge_time]').val(),
+                    'speed': $('#addVehicle input[name=speed]').val(),
+                    'charge_fly_time': $('#addVehicle input[name=charge_fly_time]').val()
+                }
+            }).done(function() {
+                toastr.success('Vehicle created');
+                loadVehicleStatus()
+            }).fail(function() {
+                toastr.error('Failed to create vehicle');
+            });
         }
     </script>
 </body>
