@@ -12,19 +12,47 @@
     <div id='map' style='width: 100%; height: 100vh;'></div>
     <div class="container">
         <br>
-        <h3>Schedule journey</h3>
-        <form id="scheduleTrip">
-            <label>From</label>
-            <select name="from" class="form-control location-select">
-                <option selected disabled>Select location...</option>
-            </select>
-            <label>To</label>
-            <select name="to" class="form-control location-select">
-                <option selected disabled>Select location...</option>
-            </select>
-            <br>
-            <a href="javascript:void(0)" class="btn btn-primary" onclick="submitScheduleTripForm()">Schedule trip</a>
-        </form>
+        <nav>
+            <div class="nav nav-tabs" id="nav-tab" role="tablist">
+                <a class="nav-item nav-link active" data-toggle="tab" href="#tab-schedule" role="tab">Schedule</a>
+                <a class="nav-item nav-link" data-toggle="tab" href="#tab-vehicle" role="tab" onclick="loadVehicleStatus()">Vehicles</a>
+            </div>
+        </nav>
+        <div class="tab-content" id="tab-pills-content">
+            <div class="tab-pane fade show active" id="tab-schedule" role="tabpanel">
+                <h3>Schedule journey</h3>
+                <form id="scheduleTrip">
+                    <label>From</label>
+                    <select name="from" class="form-control location-select">
+                        <option selected disabled>Select location...</option>
+                    </select>
+                    <label>To</label>
+                    <select name="to" class="form-control location-select">
+                        <option selected disabled>Select location...</option>
+                    </select>
+                    <br>
+                    <a href="javascript:void(0)" class="btn btn-primary" onclick="submitScheduleTripForm()">Schedule trip</a>
+                </form>
+            </div>
+            <div class="tab-pane fade" id="tab-vehicle" role="tabpanel">
+                <h3>Vehicles</h3>
+                <a href="javascript:void(0)" onclick="loadVehicleStatus()">Update table</a>
+                <table class="table">
+                    <thead class="thead-dark">
+                    <tr>
+                        <th scope="col">Vehicle ID</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Capacity</th>
+                        <th scope="col">Speed</th>
+                        <th scope="col">Charge time</th>
+                    </tr>
+                    </thead>
+                    <tbody id="vehicleDataTableBody"></tbody>
+                </table>
+
+            </div>
+        </div>
+        <br>
     </div>
     <script
         src="https://code.jquery.com/jquery-3.4.1.min.js"
@@ -36,6 +64,9 @@
     <script>
         var layer1 = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>'
+        });
+        var layer1 = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token={{MAPBOX_PK_HERE}}', {
+            attribution: '<a href="https://www.mapbox.com/feedback/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         });
         var map = L.map('map', {
             center: [53.4155801, -2.3278358],
@@ -49,12 +80,32 @@
         var landingIcon = L.icon({
             iconUrl: 'assets/landing.png',
             iconSize: [20, 35],
+            iconAnchor: [10, 35]
         });
         var vehicleIcon = L.icon({
             iconUrl: 'assets/vehicle.png',
             iconSize: [20, 35],
+            iconAnchor: [10, 35]
         });
         var vehicleLayers = {};
+        function loadVehicleStatus() {
+            $.ajax({
+                url: 'vehicle_data.php',
+                method: 'GET'
+            }).done(function(res) {
+                var data = '';
+                $.each(res, function(i, vehicle) {
+                    data += '<tr>\n' +
+                    '<th scope="row">' + vehicle.id + '</th>\n' +
+                    '<td>' + vehicle.status + '</td>\n' +
+                    '<td>' + vehicle.capacity + ' passengers</td>\n' +
+                    '<td>' + vehicle.speed + ' km/h</td>\n' +
+                    '<td>' + vehicle.charge_time + ' min</td>\n' +
+                    '</tr>';
+                });
+                $('#vehicleDataTableBody').html(data);
+            })
+        }
         $.ajax({
             url: 'locations.php',
             method: 'GET'
@@ -92,7 +143,8 @@
                     L.marker(pointAtPercent(
                         {x: trip.start_location.latitude, y: trip.start_location.longitude},
                         {x: trip.end_location.latitude, y: trip.end_location.longitude},
-                        progress), {icon: vehicleIcon}).addTo(vehicleLayers[trip.vehicle_id]);
+                        progress), {icon: vehicleIcon}).addTo(vehicleLayers[trip.vehicle_id])
+                        .bindPopup('Vehicle ' + trip.vehicle_id + '<br>From: ' + trip.start_location.name + '<br>To: ' + trip.end_location.name);
                     L.polyline(
                         [
                             [trip.start_location.latitude, trip.start_location.longitude],
@@ -130,7 +182,7 @@
                     'to_location_id': to
                 }
             }).done(function(res) {
-                toastr.success(res);
+                toastr.success(res.message);
             }).fail(function() {
                 toastr.error('Failed to schedule trip');
             });

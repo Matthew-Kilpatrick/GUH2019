@@ -3,7 +3,17 @@
     header('Content-type: application/json');
     $locations = $_DB->get('locations');
     $response = [];
-    $_DB->where('start_time', time(), '<=')->where('end_time', time(), '>=');
+    if (isset($_GET['ids'])) {
+        $ids = explode(',', $_GET['ids']);
+        if (sizeof($ids) == 1) {
+            $_DB->where('start_time <= ? AND end_time >= ? AND (id=?)', [time(), time(), $ids[0]]);
+        } else {
+            // is 2
+            $_DB->where('start_time <= ? AND end_time >= ? AND (id=? OR id=?)', [time(), time(), $ids['ids'][0], $ids['ids'][1]]);
+        }
+    }else {
+        $_DB->where('start_time', time(), '<=')->where('end_time', time(), '>=');
+    }
     foreach ($_DB->get('trips') as $trip) {
         foreach ($locations as $loc) {
             if ($loc['id'] == $trip['start_location_id']) {
