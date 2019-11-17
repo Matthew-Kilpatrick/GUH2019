@@ -6,7 +6,7 @@
         $response[] = [
             'id' => $vehicle['id'],
             'charge_time' => $vehicle['charge_time'],
-            'longitude' => $vehicle['capacity']
+            'capacity' => $vehicle['capacity']
         ];
     }
     echo json_encode($response);

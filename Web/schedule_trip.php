@@ -1,5 +1,6 @@
 <?php
     require 'base.php';
+    header('Content-type: application/json');
     function getDistance($latitude1, $longitude1, $latitude2, $longitude2) {
         $earth_radius = 6371;
         $dLat = deg2rad($latitude2 - $latitude1);
@@ -86,13 +87,29 @@
             $vehiclesAtLocation[] = $vehicle['id'];
             $timeToAvailable = 0;
             if ($vehicle['charge'] != 100) {
-                $timeToAvailable = $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100);
-                $vehicleTimes[$vehicle['id']] = [
-                    'time_to_trip_end' => 0,
-                    'time_to_charge_1' => 0,
-                    'time_to_customer' => 0,
-                    'time_to_charge_2' => $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100)
-                ];
+                // Charges from last active time
+                $timeToCharge = $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100) * 60;
+                $_DB->where('vehicle_id', $vehicle['id'])->orderBy('end_time', 'desc');
+                $lastTrip = $_DB->getOne('trips');
+                $chargeDoneAt = $lastTrip['end_time'] + $timeToCharge;
+                if ($chargeDoneAt < time()) {
+                    // charge done
+                    $vehicleTimes[$vehicle['id']] = [
+                        'time_to_trip_end' => 0,
+                        'time_to_charge_1' => 0,
+                        'time_to_customer' => 0,
+                        'time_to_charge_2' => 0
+                    ];
+                } else {
+                    // charge incomplete
+                    $timeToAvailable = $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100);
+                    $vehicleTimes[$vehicle['id']] = [
+                        'time_to_trip_end' => 0,
+                        'time_to_charge_1' => 0,
+                        'time_to_customer' => 0,
+                        'time_to_charge_2' => $timeToCharge
+                    ];
+                }
             } else {
                 $timeToAvailable = 0;
                 $vehicleTimes[$vehicle['id']] = [
@@ -105,7 +122,7 @@
         } else {
             // Vehicle is idle at another location
             // Charge time - account for whether charged since landing
-            $timeToCharge = $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100);
+            $timeToCharge = $vehicle['charge_time'] * ((100 - $vehicle['charge']) / 100) * 60;
             $_DB->where('vehicle_id', $vehicle['id'])->orderBy('end_time', 'desc');
             $lastTrip = $_DB->getOne('trips');
             if ($lastTrip['end_time'] + $timeToCharge < time()) {
@@ -175,9 +192,8 @@
             $minVehicle = $vID;
         }
     }
-    echo 'The vehicle will arrive in ' . round($minTime) . ' minutes';
-    //echo json_encode($vehicleTimes[$minVehicle]);
     $vehicleData = $vehicleTimes[$minVehicle];
+    $tripIDs = [];
     if ($vehicleData['time_to_trip_end'] > 0) {
         // Trip needed to reach customer
         $data = [
@@ -187,7 +203,7 @@
         ];
         $data['start_time'] = time() + ($vehicleData['time_to_trip_end'] + $vehicleData['time_to_charge_1']) * 60;
         $data['end_time'] = $data['start_time'] + ($vehicleData['time_to_customer'] * 60);
-        $_DB->insert('trips', $data);
+        $tripIDs[] = $_DB->insert('trips', $data);
     }
     // Data for trip with customer
     $data = [
@@ -198,11 +214,12 @@
     $data['start_time'] = time() + ($vehicleData['time_to_trip_end'] + $vehicleData['time_to_charge_1']
         + $vehicleData['time_to_customer'] + $vehicleData['time_to_charge_2']) * 60;
     $data['end_time'] = $data['start_time'] + ($vehicleData['time_to_destination'] * 60);
-    $_DB->insert('trips', $data);
+    $tripIDs[] = $_DB->insert('trips', $data);
     // TODO: UPDATE CHARGE & NEXT LOCATION OF VEHICLE
     $chargeAfterJourney = round(100 * (1 - $vehicleData['time_to_destination'] / $vehicle['charge_fly_time']));
     $_DB->where('id', $minVehicle)->update('vehicles', [
         'next_location_id' => $endLocation,
         'charge' => $chargeAfterJourney
     ]);
+    echo json_encode(['message'=> 'The vehicle will arrive in ' . round($minTime) . ' minutes', 'ids' => implode($tripIDs, ','), 'd' => $vehicleAvailabilityTimes]);
 ?>
